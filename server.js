@@ -9,10 +9,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const client = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY
-});
-
 app.post("/analyze", async (req, res) => {
   try {
     const { description } = req.body;
@@ -21,23 +17,20 @@ app.post("/analyze", async (req, res) => {
       return res.status(400).json({ error: "Description is required" });
     }
 
+    // 🔥 Create client inside route (prevents startup crash)
+    const client = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY
+    });
+
     const response = await client.models.generateContent({
       model: "gemini-2.5-flash",
       contents: `
 You are an emergency civic risk classifier.
 
-Classify strictly:
-
 Critical = gas leak, fire, explosion, building collapse
-High = electrical hazard, major flooding
+High = electrical hazard, flooding
 Medium = potholes, broken streetlight
-Low = garbage, noise, minor issue
-
-Resolution time:
-Critical → 1
-High → 6
-Medium → 24
-Low → 48
+Low = garbage, minor issue
 
 Return ONLY valid JSON:
 {
@@ -50,27 +43,10 @@ Issue: "${description}"
       config: { responseMimeType: "application/json" }
     });
 
-    const aiText = response.text;
-    console.log("AI RAW:", aiText);
-
-    let parsed;
-
-    try {
-      parsed = JSON.parse(aiText);
-    } catch (e) {
-      console.error("JSON parse failed:", e);
-      return res.status(500).json({ error: "Invalid AI JSON" });
-    }
-
-    // STRICT CLEAN RESPONSE
-    return res.status(200).json({
-      severity: parsed.severity,
-      hours: parsed.hours
-    });
-
+    res.json(JSON.parse(response.text));
   } catch (error) {
-    console.error("SERVER ERROR:", error);
-    return res.status(500).json({ error: "AI processing failed" });
+    console.error("ERROR:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
