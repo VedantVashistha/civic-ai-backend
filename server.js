@@ -1,3 +1,5 @@
+console.log("KEY EXISTS:", process.env.GEMINI_API_KEY ? "YES" : "NO");
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
