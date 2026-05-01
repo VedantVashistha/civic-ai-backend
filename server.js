@@ -1,28 +1,34 @@
-console.log("KEY EXISTS:", process.env.GEMINI_API_KEY ? "YES" : "NO");
+import dotenv from "dotenv";
+dotenv.config();
 
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 
-dotenv.config();
+// Check API key
+if (!process.env.GEMINI_API_KEY) {
+  console.error("❌ GEMINI_API_KEY missing");
+  process.exit(1);
+}
+
+console.log("KEY EXISTS:", "YES");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Create client ONCE
+const client = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY
+});
+
 app.post("/analyze", async (req, res) => {
   try {
     const { description } = req.body;
 
-    if (!description) {
-      return res.status(400).json({ error: "Description is required" });
+    if (!description || typeof description !== "string") {
+      return res.status(400).json({ error: "Valid description required" });
     }
-
-    // 🔥 Create client inside route (prevents startup crash)
-    const client = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY
-    });
 
     const response = await client.models.generateContent({
       model: "gemini-2.5-flash",
@@ -45,7 +51,16 @@ Issue: "${description}"
       config: { responseMimeType: "application/json" }
     });
 
-    res.json(JSON.parse(response.text));
+    let parsed;
+    try {
+      parsed = JSON.parse(response.text);
+    } catch {
+      console.error("Invalid AI response:", response.text);
+      return res.status(500).json({ error: "Invalid AI response" });
+    }
+
+    res.json(parsed);
+
   } catch (error) {
     console.error("ERROR:", error);
     res.status(500).json({ error: error.message });
